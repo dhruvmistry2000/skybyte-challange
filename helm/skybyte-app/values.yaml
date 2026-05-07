@@ -6,11 +6,6 @@ image:
 service:
   type: ClusterIP
   port: 80
-apiTokenSecret:
-  create: false
-  name: api-token
-  key: token
-apiToken: ''
 namespace: devops-challenge
 resources:
   requests:

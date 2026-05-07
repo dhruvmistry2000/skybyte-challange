@@ -45,11 +45,12 @@ spec:
               containerPort: 80
               protocol: TCP
           env:
+            # Secret `api-token` is created by Terraform only — not by this chart.
             - name: API_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.apiTokenSecret.name }}
-                  key: {{ .Values.apiTokenSecret.key }}
+                  name: api-token
+                  key: token
           livenessProbe:
             httpGet:
               path: /healthz
