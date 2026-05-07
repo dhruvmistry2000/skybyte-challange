@@ -1,0 +1,51 @@
+# Anything not COPY'd by the Dockerfile is dead weight in the build context.
+# Keep this file aggressive — a small context = faster builds, smaller layer
+# cache invalidation surface, and fewer accidental secrets in the image.
+
+# VCS
+.git/
+.gitignore
+.gitattributes
+
+# CI / IaC / cluster config — never needed inside the image
+.github/
+helm/
+terraform/
+policies/
+docs/
+
+# Top-level docs and scripts — image doesn't need them
+AUDIT.md
+CHALLENGE.md
+DECISIONS.md
+README.md
+setup.sh
+system-checks.sh
+
+# Python build/test artefacts (also in .gitignore but defence in depth)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.tox/
+*.egg-info/
+
+# Editor / OS junk
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Docker bits — we never want a Dockerfile inside the image
+Dockerfile
+.dockerignore
+
+# Hiring team artefacts (mirrors .gitignore)
+INTERVIEWER_NOTES.md
+INTERVIEWER/
