@@ -1,41 +1,136 @@
 name: CI
 
 on:
-  push:
   pull_request:
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: '3.9'
+  HELM_RELEASE: skybyte-app
+  HELM_CHART_DIR: helm/skybyte-app
+  NAMESPACE: devops-challenge
+  RENDERED_MANIFEST: /tmp/rendered.yaml
+  DOCKER_IMAGE: dhruvmistry200/skybyte-app
+  KYVERNO_VERSION: v1.13.4
+  GOOD_POD_FIXTURE: policies/tests/good-pod.yaml
+  BAD_POD_FIXTURE: policies/tests/bad-pod.yaml
+  POLICY_POD_SECURITY: policies/require-pod-security.yaml
+  POLICY_RESOURCE_LIMITS: policies/require-resource-limits.yaml
 
 jobs:
-  lint-and-build:
+  python:
+    name: Python lint + tests
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install flake8
-        run: pip install flake8
-
-      - name: Lint Python
-        run: flake8 app/ --exclude=app/* --exit-zero
-
-      - name: Set up Helm
-        uses: azure/setup-helm@v4
-
-      - name: Helm lint
-        run: helm lint helm/skybyte-app || true
-
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
-
-      - name: Terraform validate
+      - name: Install dependencies
         run: |
-          cd terraform
-          terraform init -backend=false
-          terraform validate || true
+          python -m pip install --upgrade pip
+          pip install -r app/requirements.txt
+          pip install ruff pytest
 
-      - name: Build Docker image
-        run: docker build -t skybyte/app:ci .
+      - name: Lint with ruff
+        run: ruff check app/
+
+      - name: Unit tests
+        run: pytest -v app/tests
+
+  helm:
+    name: Helm lint + render
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+
+      - name: helm lint
+        run: helm lint ${{ env.HELM_CHART_DIR }}
+
+      - name: helm template (sanity)
+        run: helm template ${{ env.HELM_RELEASE }} ${{ env.HELM_CHART_DIR }} --namespace ${{ env.NAMESPACE }} > ${{ env.RENDERED_MANIFEST }}
+
+      - name: Upload rendered manifests
+        uses: actions/upload-artifact@v4
+        with:
+          name: rendered-manifests
+          path: ${{ env.RENDERED_MANIFEST }}
+          retention-days: 1
+
+  policies:
+    name: Kyverno policy validation
+    runs-on: ubuntu-latest
+    needs: helm
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+
+      - name: Install Kyverno CLI
+        run: |
+          curl -fsSL "https://github.com/kyverno/kyverno/releases/download/${KYVERNO_VERSION}/kyverno-cli_${KYVERNO_VERSION}_linux_x86_64.tar.gz" -o /tmp/kyverno.tgz
+          tar -xzf /tmp/kyverno.tgz -C /tmp kyverno
+          sudo install -m 0755 /tmp/kyverno /usr/local/bin/kyverno
+          kyverno version
+
+      - name: Render Helm chart
+        run: helm template ${{ env.HELM_RELEASE }} ${{ env.HELM_CHART_DIR }} --namespace ${{ env.NAMESPACE }} > ${{ env.RENDERED_MANIFEST }}
+
+      - name: Apply policies to rendered chart (must PASS)
+        run: |
+          kyverno apply \
+            ${{ env.POLICY_POD_SECURITY }} \
+            ${{ env.POLICY_RESOURCE_LIMITS }} \
+            --resource ${{ env.RENDERED_MANIFEST }}
+
+      - name: Apply policies to good-pod fixture (must PASS)
+        run: |
+          kyverno apply \
+            ${{ env.POLICY_POD_SECURITY }} \
+            ${{ env.POLICY_RESOURCE_LIMITS }} \
+            --resource ${{ env.GOOD_POD_FIXTURE }}
+
+      - name: Apply policies to bad-pod fixture (must FAIL — rejection proof)
+        run: |
+          set +e
+          kyverno apply \
+            ${{ env.POLICY_POD_SECURITY }} \
+            ${{ env.POLICY_RESOURCE_LIMITS }} \
+            --resource ${{ env.BAD_POD_FIXTURE }}
+          rc=$?
+          if [ $rc -eq 0 ]; then
+            echo "::error::Kyverno accepted the bad-pod fixture; policies are not enforcing."
+            exit 1
+          fi
+          echo "Kyverno correctly rejected bad-pod (exit=$rc)."
+
+  terraform:
+    name: Terraform validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: terraform fmt -check
+        run: terraform -chdir=terraform fmt -check
+
+      - name: terraform init (no backend)
+        run: terraform -chdir=terraform init -backend=false
+
+      - name: terraform validate
+        run: terraform -chdir=terraform validate
+
+  docker:
+    name: Build container image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t ${{ env.DOCKER_IMAGE }} .

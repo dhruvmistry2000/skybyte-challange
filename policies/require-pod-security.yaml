@@ -1,0 +1,88 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-pod-security
+  annotations:
+    policies.kyverno.io/title: Require Pod Security Baseline
+    policies.kyverno.io/category: Pod Security
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Every workload in this repo must satisfy the same hardening baseline
+      enforced in helm/skybyte-app/templates/deployment.yaml: run as a
+      non-root user, drop ALL Linux capabilities, disallow privilege
+      escalation, and use a read-only root filesystem. Catches regressions
+      to the Deployment template before they reach the cluster.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: pod-must-run-as-non-root
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: >-
+          Pod must set runAsNonRoot=true at the pod or container level.
+        anyPattern:
+          - spec:
+              securityContext:
+                runAsNonRoot: true
+          - spec:
+              containers:
+                - (name): "*"
+                  securityContext:
+                    runAsNonRoot: true
+
+    - name: containers-must-drop-all-capabilities
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: >-
+          Containers must drop ALL Linux capabilities
+          (securityContext.capabilities.drop must contain "ALL").
+        pattern:
+          spec:
+            containers:
+              - name: "*"
+                securityContext:
+                  capabilities:
+                    drop:
+                      - ALL
+
+    - name: containers-must-disallow-privilege-escalation
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: >-
+          Containers must set allowPrivilegeEscalation=false.
+        pattern:
+          spec:
+            containers:
+              - name: "*"
+                securityContext:
+                  allowPrivilegeEscalation: false
+
+    - name: containers-must-use-readonly-root-filesystem
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: >-
+          Containers must set readOnlyRootFilesystem=true.
+        pattern:
+          spec:
+            containers:
+              - name: "*"
+                securityContext:
+                  readOnlyRootFilesystem: true
