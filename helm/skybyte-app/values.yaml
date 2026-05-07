@@ -1,7 +1,7 @@
 replicaCount: 1
 image:
   repository: dhruvmistry200/skybyte-app
-  tag: v2
+  tag: v6
   pullPolicy: Always
 service:
   type: ClusterIP

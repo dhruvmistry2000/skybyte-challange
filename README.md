@@ -4,6 +4,15 @@ A small Python service that returns a greeting. Runs in Kubernetes via Helm.
 
 > **Note:** the engineer who set this up is no longer with the team. Some of this README may be out of date. **The challenge brief is in [`CHALLENGE.md`](./CHALLENGE.md) — start there.**
 
+---
+
+## Service Level Objective (SLO)
+
+- **SLO Statement:** The Skybyte API must respond with HTTP 200 and the expected JSON payload for 99% of requests within 500ms, as measured over any rolling 24 hour window.
+- **How we'd know it broke:** Health check endpoints (e.g. `/healthz`) or main service endpoints consistently fail, or response times exceed SLO thresholds, as observed via logs, CI checks, or monitoring tools.
+
+---
+
 ## Prerequisites
 
 - Docker Desktop (or any Docker engine)
