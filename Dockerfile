@@ -17,6 +17,6 @@ RUN addgroup --system --gid 10001 app && \
 
 USER 10001:10001
 
-EXPOSE 8080
+EXPOSE 80
 
-CMD ["python", "main.py"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "main:app"]

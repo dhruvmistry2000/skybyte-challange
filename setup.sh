@@ -9,8 +9,8 @@ VALUES_FILE="helm/skybyte-app/values.yaml"
 HELM_RELEASE="skybyte-app"
 K8S_NAMESPACE="devops-challenge"
 
-IMAGE_REPO="${IMAGE_REPO:-skybyte/app}"
-PUSH_IMAGE="${PUSH_IMAGE:-false}" # set to "true" to push
+IMAGE_REPO="${IMAGE_REPO:-dhruvmistry200/skybyte-app}"
+PUSH_IMAGE="${PUSH_IMAGE:-true}" # set to "true" to push
 
 current_tag="$(grep -E '^[[:space:]]*tag:' "$VALUES_FILE" | head -n1 | sed -E 's/^[[:space:]]*tag:[[:space:]]*"?([^"]+)"?/\1/')"
 if [[ ! "$current_tag" =~ ^v([0-9]+)$ ]]; then

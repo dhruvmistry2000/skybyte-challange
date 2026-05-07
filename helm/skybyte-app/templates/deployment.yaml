@@ -43,8 +43,8 @@ spec:
             - name: API_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: api-token
-                  key: token
+                  name: {{ .Values.apiTokenSecret.name }}
+                  key: {{ .Values.apiTokenSecret.key }}
           livenessProbe:
             httpGet:
               path: /
@@ -53,3 +53,5 @@ spec:
             httpGet:
               path: /
               port: http
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
