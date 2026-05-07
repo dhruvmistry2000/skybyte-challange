@@ -33,7 +33,7 @@ To verify the deployment:
 
 ```bash
 kubectl -n devops-challenge get pods
-kubectl -n devops-challenge port-forward svc/skybyte-app 8080:80
+kubectl -n devops-challenge port-forward svc/skybyte-app 8080:8080
 curl http://localhost:8080/
 # expected: {"message": "Hello, Candidate", "version": "1.0.0"}
 ```
@@ -41,10 +41,10 @@ curl http://localhost:8080/
 ## Architecture
 
 ```
-[Client] ──► [Service:80] ──► [Pod:appuser:80]
+[Client] ──► [Service:8080] ──► [Pod:appuser:8080]
 ```
 
-The pod runs as a non-root user (appuser) and listens on port 80. Health checks are wired to `/healthz`.
+The pod runs as a non-root user (uid 10001) and listens on port 8080. Port 8080 is unprivileged on Linux, so the container needs neither root nor `CAP_NET_BIND_SERVICE`. Health checks are wired to `/healthz`.
 
 ## CI
 

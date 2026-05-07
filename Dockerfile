@@ -17,6 +17,6 @@ RUN addgroup --system --gid 10001 app && \
 
 USER 10001:10001
 
-EXPOSE 80
+EXPOSE 8080
 
-CMD ["gunicorn", "--bind", "0.0.0.0:80", "main:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "main:app"]

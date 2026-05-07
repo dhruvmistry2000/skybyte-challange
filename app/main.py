@@ -70,4 +70,4 @@ signal.signal(signal.SIGTERM, _handle_sigterm)
 if __name__ == "__main__":
     # Production containers must be started with gunicorn (see below).
     # This block is kept only for quick local iteration.
-    app.run(host="0.0.0.0", port=80, debug=False)
+    app.run(host="0.0.0.0", port=8080, debug=False)

@@ -18,8 +18,8 @@
 ### App runs as root and on privileged port by default
 - **Where:** `Dockerfile`, `app/main.py`, `helm/skybyte-app/templates/deployment.yaml`
 - **What’s wrong:** Dockerfile never switches to a non-root user. Flask binds to port 80, which is privileged on Linux. There’s zero `securityContext` in the deployment.
-- **Why it matters:** Containers running as root are a security red flag—RCE turns into full node compromise, privilege escalation, etc. Privileged ports mean you *have* to be root unless special caps are set. This all fails even basic container security best practices.
-- **Fix:** Run the app on 8080 (or 8000—just not a privileged port), map via the Service. Add a pod/container `securityContext`:
+- **Why it matters:** Containers running as root are a security red flag—RCE turns into full node compromise, privilege escalation, etc. Privileged ports mean you *have* to be root or hold `CAP_NET_BIND_SERVICE`. This fails basic container security best practices.
+- **Fix:** Run the app on 8080 (unprivileged), map via the Service. Switch the Dockerfile to a non-root UID and add a pod/container `securityContext`:
     - `runAsNonRoot: true`
     - `readOnlyRootFilesystem: true`
     - `allowPrivilegeEscalation: false`

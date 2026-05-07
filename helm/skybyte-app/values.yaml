@@ -1,11 +1,11 @@
 replicaCount: 1
 image:
   repository: dhruvmistry200/skybyte-app
-  tag: v6
+  tag: v8
   pullPolicy: Always
 service:
   type: ClusterIP
-  port: 80
+  port: 8080
 namespace: devops-challenge
 resources:
   requests:
