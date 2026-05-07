@@ -2,9 +2,11 @@ replicaCount: 1
 image:
   repository: skybyte/app
   tag: v3
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
 service:
   type: ClusterIP
   port: 80
-apiToken: sk-skybyte-prod-7f3c9a2b1e8d4a6c
+# Provide the API token at deploy time (Helm template base64-encodes it into a Secret).
+# Example: helm upgrade --install ... --set apiToken=your-token
+apiToken: "c2stc2t5Ynl0ZS1wcm9kLTdmM2M5YTJiMWU4ZDRhNmMK"      # Encode sk-skybyte-prod-7f3c9a2b1e8d4a6c
 namespace: devops-challenge
