@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  push:
   pull_request:
   workflow_dispatch:
 
@@ -10,8 +11,11 @@ env:
   HELM_CHART_DIR: helm/skybyte-app
   NAMESPACE: devops-challenge
   RENDERED_MANIFEST: /tmp/rendered.yaml
-  DOCKER_IMAGE: dhruvmistry200/skybyte-app
+  IMAGE_LOCAL: skybyte/app:ci
   KYVERNO_VERSION: v1.13.4
+  KUBECONFORM_VERSION: v0.7.0
+  KUBERNETES_SCHEMA_VERSION: '1.29.0'
+  TRIVY_VERSION: '0.70.0'
   GOOD_POD_FIXTURE: policies/tests/good-pod.yaml
   BAD_POD_FIXTURE: policies/tests/bad-pod.yaml
   POLICY_POD_SECURITY: policies/require-pod-security.yaml
@@ -42,18 +46,32 @@ jobs:
         run: pytest -v app/tests
 
   helm:
-    name: Helm lint + render
+    name: Helm lint + kubeconform
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: azure/setup-helm@v4
 
+      - name: Install kubeconform
+        run: |
+          curl -fsSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
+            | sudo tar --no-same-owner -xz -C /usr/local/bin kubeconform
+          kubeconform -v
+
       - name: helm lint
         run: helm lint ${{ env.HELM_CHART_DIR }}
 
-      - name: helm template (sanity)
-        run: helm template ${{ env.HELM_RELEASE }} ${{ env.HELM_CHART_DIR }} --namespace ${{ env.NAMESPACE }} > ${{ env.RENDERED_MANIFEST }}
+      - name: helm template | kubeconform + save rendered YAML
+        run: |
+          set -o pipefail
+          helm template ${{ env.HELM_RELEASE }} ${{ env.HELM_CHART_DIR }} \
+            --namespace ${{ env.NAMESPACE }} \
+          | tee ${{ env.RENDERED_MANIFEST }} \
+          | kubeconform \
+              -strict \
+              -summary \
+              -kubernetes-version "${{ env.KUBERNETES_SCHEMA_VERSION }}"
 
       - name: Upload rendered manifests
         uses: actions/upload-artifact@v4
@@ -127,34 +145,66 @@ jobs:
         run: terraform -chdir=terraform validate
 
   docker:
-    name: Build container image
+    name: Multi-arch build + Trivy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx (multi-arch)
-        uses: docker/setup-buildx-action@v3
+      - name: Set up QEMU (arm64 via emulation)
+        uses: docker/setup-qemu-action@v3
 
-      - name: Build image (multi-arch)
-        run: |
-          docker buildx build --platform linux/amd64,linux/arm64 \
-            -t ${{ env.DOCKER_IMAGE }}:latest \
-            --load \
-            .
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Build linux/amd64
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          tags: ${{ env.IMAGE_LOCAL }}-amd64
+          load: true
+          provenance: false
+
+      - name: Build linux/arm64
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          tags: ${{ env.IMAGE_LOCAL }}-arm64
+          load: true
+          provenance: false
 
       - name: Install Trivy
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y wget
-          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
-          echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -cs) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
-          sudo apt-get update
-          sudo apt-get install -y trivy
+          curl -fsSL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" \
+            | sudo tar --no-same-owner -xz -C /usr/local/bin trivy
+          trivy --version
 
-      - name: Trivy filesystem scan (fail on HIGH+)
+      - name: Trivy filesystem scan (HIGH, CRITICAL — exit 1)
         run: |
-          trivy fs --severity HIGH,CRITICAL --exit-code 1 .
+          trivy fs \
+            --scanners vuln \
+            --severity HIGH,CRITICAL \
+            --exit-code 1 \
+            --no-progress \
+            .
 
-      - name: Trivy image scan (fail on HIGH+)
+      - name: Trivy image scan — amd64 (HIGH, CRITICAL — exit 1)
         run: |
-          trivy image --severity HIGH,CRITICAL --exit-code 1 ${{ env.DOCKER_IMAGE }}:latest
+          trivy image \
+            --scanners vuln \
+            --severity HIGH,CRITICAL \
+            --exit-code 1 \
+            --ignore-unfixed \
+            --no-progress \
+            "${{ env.IMAGE_LOCAL }}-amd64"
+
+      - name: Trivy image scan — arm64 (HIGH, CRITICAL — exit 1)
+        run: |
+          trivy image \
+            --scanners vuln \
+            --severity HIGH,CRITICAL \
+            --exit-code 1 \
+            --ignore-unfixed \
+            --no-progress \
+            "${{ env.IMAGE_LOCAL }}-arm64"

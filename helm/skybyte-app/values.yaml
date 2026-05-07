@@ -7,6 +7,13 @@ service:
   type: ClusterIP
   port: 8080
 namespace: devops-challenge
+# Prometheus scrape configuration (pod-level annotations).
+# Picked annotations over a ServiceMonitor so the chart works on clusters
+# without the Prometheus Operator CRDs installed. See DECISIONS.md.
+metrics:
+  enabled: true
+  path: /metrics
+  port: 8080
 resources:
   requests:
     cpu: 50m
