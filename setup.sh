@@ -12,6 +12,18 @@ K8S_NAMESPACE="devops-challenge"
 IMAGE_REPO="${IMAGE_REPO:-dhruvmistry200/skybyte-app}"
 PUSH_IMAGE="${PUSH_IMAGE:-true}" # set to "true" to push
 
+# Check if terraform is installed
+if ! command -v terraform >/dev/null 2>&1; then
+  echo "ERROR: terraform is required but not installed. Please install Terraform (https://www.terraform.io/downloads.html)." >&2
+  exit 1
+fi
+
+# Check if helm is installed
+if ! command -v helm >/dev/null 2>&1; then
+  echo "ERROR: helm is required but not installed. Please install Helm (https://helm.sh/docs/intro/install/)." >&2
+  exit 1
+fi
+
 current_tag="$(grep -E '^[[:space:]]*tag:' "$VALUES_FILE" | head -n1 | sed -E 's/^[[:space:]]*tag:[[:space:]]*"?([^"]+)"?/\1/')"
 if [[ ! "$current_tag" =~ ^v([0-9]+)$ ]]; then
   echo "ERROR: expected image.tag like v1, v2, ... but found: '${current_tag}' in ${VALUES_FILE}" >&2
